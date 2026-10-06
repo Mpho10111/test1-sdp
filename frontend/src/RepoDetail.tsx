@@ -523,17 +523,11 @@ export default function RepoDetail({ repo, onBack }: { repo: Repo; onBack: () =>
             <div className="chart-card">
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
                 <h3 style={{ margin: 0 }}>Contribution activity</h3>
-                <div style={{ display: "flex", gap: 4 }}>
+                <select value={heatYear} onChange={(e) => setHeatYear(+e.target.value)}>
                   {heatYears.map((yr) => (
-                    <button
-                      key={yr}
-                      className={yr === heatYear ? "ghost active-year" : "ghost"}
-                      onClick={() => setHeatYear(yr)}
-                    >
-                      {yr}
-                    </button>
+                    <option key={yr} value={yr}>{yr}</option>
                   ))}
-                </div>
+                </select>
               </div>
               <EChart option={heatmapOption(activity, heatYear)} height={200} />
             </div>
