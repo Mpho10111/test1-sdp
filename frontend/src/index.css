@@ -160,7 +160,8 @@ button.link.danger {
 
 table {
   width: 100%;
-  border-collapse: collapse;
+  border-spacing: 0;
+  border-collapse: separate;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -174,6 +175,10 @@ td {
   padding: 10px 12px;
   border-bottom: 1px solid var(--pink-100);
   font-size: 14px;
+}
+
+tr:last-child td {
+  border-bottom: none;
 }
 
 th {
