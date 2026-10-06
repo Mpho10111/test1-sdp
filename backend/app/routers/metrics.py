@@ -106,3 +106,31 @@ def object_detail(
         "authors": M.by_author(repo_id, resolved, clean, cf),
         "timeline": M.object_timeline(repo_id, resolved, clean, cf),
     }
+
+
+@router.get("/activity")
+def activity_heatmap(
+    repo_id: int,
+    from_ts: int | None = None,
+    to_ts: int | None = None,
+    commits: str | None = None,
+    author_id: int | None = None,
+):
+    """Daily commit counts for a calendar heatmap."""
+    _require_ready(repo_id)
+    cf = _filter(from_ts, to_ts, commits, author_id)
+    return M.daily_activity(repo_id, cf)
+
+
+@router.get("/treemap")
+def treemap(
+    repo_id: int,
+    from_ts: int | None = None,
+    to_ts: int | None = None,
+    commits: str | None = None,
+    author_id: int | None = None,
+):
+    """Hierarchical directory metrics for an ECharts treemap."""
+    _require_ready(repo_id)
+    cf = _filter(from_ts, to_ts, commits, author_id)
+    return M.dir_treemap(repo_id, cf)

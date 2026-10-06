@@ -174,6 +174,36 @@ export const deleteRepo = async (id: number): Promise<void> => {
 
 // ---- metrics ---------------------------------------------------------------
 
+export interface ActivityDay {
+  date: string;
+  count: number;
+}
+
+export interface TreemapNode {
+  name: string;
+  path: string;
+  value: number;
+  churn: number;
+  added: number;
+  removed: number;
+  modifications: number;
+  children?: TreemapNode[];
+}
+
+export interface CommitRow {
+  hash: string;
+  parent_hash: string | null;
+  author_id: number;
+  committer_date: number;
+  author_name: string;
+  author_email: string;
+}
+
+export interface CommitPage {
+  total: number;
+  items: CommitRow[];
+}
+
 export const getOverview = (id: number, p: MetricParams = {}): Promise<Overview> =>
   fetch(`/api/repos/${id}/metrics/overview${qs(p)}`).then((r) => handle<Overview>(r));
 
@@ -195,6 +225,18 @@ export const getObject = (
   fetch(`/api/repos/${id}/metrics/object${qs({ ...p, kind, path })}`).then((r) =>
     handle<ObjectDetail>(r)
   );
+
+export const getActivity = (id: number, p: MetricParams = {}): Promise<ActivityDay[]> =>
+  fetch(`/api/repos/${id}/metrics/activity${qs(p)}`).then((r) => handle<ActivityDay[]>(r));
+
+export const getTreemap = (id: number, p: MetricParams = {}): Promise<TreemapNode[]> =>
+  fetch(`/api/repos/${id}/metrics/treemap${qs(p)}`).then((r) => handle<TreemapNode[]>(r));
+
+export const getCommits = (
+  id: number,
+  p: { author_id?: number | null; from_ts?: number | null; to_ts?: number | null; limit?: number; offset?: number } = {}
+): Promise<CommitPage> =>
+  fetch(`/api/repos/${id}/commits${qs(p)}`).then((r) => handle<CommitPage>(r));
 
 // ---- authors ---------------------------------------------------------------
 

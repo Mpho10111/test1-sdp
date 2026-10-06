@@ -466,3 +466,80 @@ def overview(repo_id: int, cf: CommitFilter, top_n: int = 10) -> dict:
         "top_dirs": [r for r in _rows(top_dirs, "dir") if r["dir"] != "(root)"],
         "top_authors": top_authors,
     }
+
+
+# ---------------------------------------------------------------------------
+# daily_activity  — calendar heatmap data
+# ---------------------------------------------------------------------------
+
+def daily_activity(repo_id: int, cf: CommitFilter) -> list[dict]:
+    """Return [{date, count}, ...] for every day with at least one commit."""
+    cf_sql, cf_params = _commit_filter_sql(cf)
+    where = f"AND {cf_sql}" if cf_sql else ""
+    sql = f"""
+        SELECT strftime('%Y-%m-%d', c.committer_date, 'unixepoch') AS date,
+               COUNT(*) AS count
+          FROM commits c
+         WHERE c.repo_id = ? {where}
+         GROUP BY date
+         ORDER BY date
+    """
+    with db() as conn:
+        return [{"date": r["date"], "count": r["count"]}
+                for r in conn.execute(sql, [repo_id, *cf_params])]
+
+
+# ---------------------------------------------------------------------------
+# dir_treemap  — hierarchical directory structure with metrics
+# ---------------------------------------------------------------------------
+
+def dir_treemap(repo_id: int, cf: CommitFilter) -> list[dict]:
+    """Build an ECharts-ready tree: [{name, value, children}, ...]."""
+    cf_sql, cf_params = _commit_filter_sql(cf)
+    where = f"AND {cf_sql}" if cf_sql else ""
+    sql = f"""
+        SELECT d.dir,
+               SUM(ch.added + ch.removed) AS churn,
+               SUM(ch.added)              AS added,
+               SUM(ch.removed)            AS removed,
+               {_MODS}                    AS modifications
+          FROM changes ch
+          JOIN commits c ON c.id = ch.commit_id AND c.repo_id = ch.repo_id
+          JOIN dirs_of_path d ON d.repo_id = ch.repo_id AND d.path = ch.path
+         WHERE ch.repo_id = ? {where}
+         GROUP BY d.dir
+    """
+    with db() as conn:
+        rows = {r["dir"]: dict(r) for r in conn.execute(sql, [repo_id, *cf_params]) if r["dir"]}
+    if not rows:
+        return []
+
+    # direct contributions per directory (subtract children)
+    dirs_sorted = sorted(rows.keys())
+    children_churn: dict[str, int] = {}
+    for d in dirs_sorted:
+        parent = d.rsplit("/", 1)[0] if "/" in d else ""
+        if parent in rows:
+            children_churn[parent] = children_churn.get(parent, 0) + rows[d]["churn"]
+
+    # build the tree bottom-up
+    nodes: dict[str, dict] = {}
+    for d in sorted(dirs_sorted, key=lambda x: x.count("/"), reverse=True):
+        r = rows[d]
+        own_churn = max(0, r["churn"] - children_churn.get(d, 0))
+        node: dict = {"name": d.rsplit("/", 1)[-1] if "/" in d else d,
+                       "path": d, "value": own_churn,
+                       "added": r["added"], "removed": r["removed"],
+                       "churn": r["churn"], "modifications": r["modifications"]}
+        kids = [nodes[c] for c in dirs_sorted if _is_direct_child(d, c) and c in nodes]
+        if kids:
+            node["children"] = kids
+        nodes[d] = node
+
+    # collect top-level roots
+    roots = [nodes[d] for d in dirs_sorted if "/" not in d and d in nodes]
+    return roots
+
+
+def _is_direct_child(parent: str, candidate: str) -> bool:
+    return candidate.startswith(parent + "/") and "/" not in candidate[len(parent) + 1:]
