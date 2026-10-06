@@ -111,17 +111,69 @@ function donutOption(authors: ObjectAuthor[]): EChartsOption {
 
 function heatmapOption(days: ActivityDay[]): EChartsOption {
   if (!days.length) return {};
-  const first = days[0].date;
-  const last = days[days.length - 1].date;
-  const maxCount = Math.max(...days.map((d) => d.count));
+
+  /* Group data by year and show the most recent 3 years as stacked calendars,
+     mimicking GitHub's contribution graph (one row per year). */
+  const byYear = new Map<number, [string, number][]>();
+  for (const d of days) {
+    const y = +d.date.slice(0, 4);
+    if (!byYear.has(y)) byYear.set(y, []);
+    byYear.get(y)!.push([d.date, d.count]);
+  }
+
+  const years = [...byYear.keys()].sort((a, b) => b - a).slice(0, 3).reverse();
+  const maxCount = Math.max(...days.map((d) => d.count), 1);
+  const CELL = 13;
+  const GAP = 4;
+  const ROW_H = CELL * 7 + GAP * 6 + 36;      // 7 days + gaps + label
+  const TOP_PAD = 8;
+
+  const calendars: object[] = [];
+  const series: object[] = [];
+
+  years.forEach((yr, i) => {
+    const top = TOP_PAD + i * (ROW_H + 24);
+    calendars.push({
+      range: String(yr),
+      cellSize: [CELL, CELL],
+      top,
+      left: 74,
+      right: 30,
+      splitLine: { show: false },
+      yearLabel: { show: true, position: "left", margin: 12, fontSize: 13, fontWeight: 600, color: "#24292f" },
+      dayLabel: {
+        show: true,
+        firstDay: 0,
+        nameMap: ["Sun", "", "Tue", "", "Thu", "", "Sat"],
+        fontSize: 10,
+        color: "#656d76",
+      },
+      monthLabel: { show: true, fontSize: 10, color: "#656d76" },
+      itemStyle: { borderWidth: 3, borderColor: "#fff", borderRadius: 2, color: "#ebedf0" },
+    });
+    series.push({
+      type: "heatmap",
+      coordinateSystem: "calendar",
+      calendarIndex: i,
+      data: byYear.get(yr) ?? [],
+    });
+  });
+
   return {
-    tooltip: { formatter: (p: unknown) => {
-      const v = (p as { data: [string, number] }).data;
-      return `${v[0]}: ${v[1]} commits`;
-    }},
-    visualMap: { min: 0, max: maxCount, show: false, inRange: { color: ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"] } },
-    calendar: { range: [first, last], cellSize: [13, 13], top: 36, left: 50, right: 30, yearLabel: { show: true }, itemStyle: { borderWidth: 2, borderColor: "#fff" } },
-    series: [{ type: "heatmap", coordinateSystem: "calendar", data: days.map((d) => [d.date, d.count]) }],
+    tooltip: {
+      formatter: (p: unknown) => {
+        const v = (p as { data: [string, number] }).data;
+        return v ? `<b>${v[0]}</b><br/>${v[1]} commit${v[1] !== 1 ? "s" : ""}` : "";
+      },
+    },
+    visualMap: {
+      min: 0,
+      max: maxCount,
+      show: false,
+      inRange: { color: ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"] },
+    },
+    calendar: calendars as never,
+    series: series as never,
   };
 }
 
@@ -466,12 +518,16 @@ export default function RepoDetail({ repo, onBack }: { repo: Repo; onBack: () =>
           ]} />
 
           {/* Activity heatmap (calendar) */}
-          {activity.length > 0 && (
-            <div className="chart-card">
-              <h3>Contribution activity</h3>
-              <EChart option={heatmapOption(activity)} height={activity.length > 365 ? 190 : 160} />
-            </div>
-          )}
+          {activity.length > 0 && (() => {
+            const yearCount = Math.min(new Set(activity.map((d) => d.date.slice(0, 4))).size, 3);
+            const heatH = yearCount * 180;
+            return (
+              <div className="chart-card">
+                <h3>Contribution activity</h3>
+                <EChart option={heatmapOption(activity)} height={heatH} />
+              </div>
+            );
+          })()}
 
           {/* Monthly activity chart */}
           <div className="chart-card">
