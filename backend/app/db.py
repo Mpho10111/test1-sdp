@@ -89,6 +89,10 @@ def get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # connections are opened per request, so give each one enough page cache to
+    # hold the working set of a large repository (61k commits => ~36 MB db)
+    conn.execute("PRAGMA cache_size = -65536")  # 64 MiB
+    conn.execute("PRAGMA mmap_size = 268435456")  # 256 MiB memory-mapped I/O
     return conn
 
 
