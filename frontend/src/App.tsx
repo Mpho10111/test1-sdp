@@ -141,7 +141,10 @@ export default function App() {
                         Open dashboard
                       </button>
                     )}
-                    <button className="link" onClick={() => void run(() => deleteRepo(repo.id))}>
+                    <button className="link danger" onClick={() => {
+                      if (window.confirm(`Delete "${repo.name}"? This cannot be undone.`))
+                        void run(() => deleteRepo(repo.id));
+                    }}>
                       Delete
                     </button>
                   </td>

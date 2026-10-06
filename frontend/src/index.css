@@ -83,6 +83,10 @@ button.link {
   padding: 0;
 }
 
+button.link.danger {
+  color: #dc2626;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
