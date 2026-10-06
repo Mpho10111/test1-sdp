@@ -1,7 +1,8 @@
 """Per-commit history extraction.
 
 Pipeline:
-1. Resolve reference commit h_r:  git rev-parse HEAD  (stored on repos.reference_commit)
+1. Resolve reference commit h_r:  git rev-parse <requested ref | HEAD>, where the
+   requested ref may be a branch, tag or commit hash (stored on repos.reference_commit)
 2. Commit metadata (one git log pass, oldest first):
      git [-c mailmap.blob=<h_r>:.mailmap] log --no-merges --reverse \
          --format="%H%x00%ct%x00%P%x00%an%x00%ae%x00%aN%x00%aE" <h_r>
@@ -43,9 +44,14 @@ VALUES (?, ?, ?, ?, ?, ?)
 FileChange = tuple[str, "str | None", int, int]
 
 
-def extract_history(repo_id: int, repo_path: Path, on_progress: Callable[..., None]) -> None:
+def extract_history(
+    repo_id: int,
+    repo_path: Path,
+    ref: str | None = None,
+    on_progress: Callable[..., None] = lambda _fraction: None,
+) -> None:
     repo_path = Path(repo_path)
-    reference = _git(repo_path, ["rev-parse", "--verify", "HEAD^{commit}"]).strip()
+    reference = _resolve_reference(repo_path, ref)
     commits = _list_commits(repo_path, reference)
     if not commits:
         raise RuntimeError("No non-merge commits reachable from the reference commit")
@@ -250,6 +256,25 @@ def _parse_diff_stream(stream) -> Iterator[tuple[str, list[FileChange]]]:
 
     if current is not None:
         yield current, files
+
+
+def _resolve_reference(repo_path: Path, ref: str | None) -> str:
+    """Resolve h_r: an explicit branch, tag or commit hash — otherwise HEAD.
+
+    Mirror clones are bare, so a short name such as `main` or `v1.7` is also
+    tried in the refs/heads and refs/tags namespaces.
+    """
+    spec = (ref or "").strip() or "HEAD"
+    for candidate in (spec, f"refs/heads/{spec}", f"refs/tags/{spec}"):
+        proc = subprocess.run(
+            ["git", "-C", str(repo_path), "rev-parse", "--verify", "--quiet",
+             f"{candidate}^{{commit}}"],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode == 0 and proc.stdout.strip():
+            return proc.stdout.strip()
+    raise RuntimeError(f"Could not resolve reference {spec!r} in this repository")
 
 
 def _list_commits(repo_path: Path, reference: str) -> list[dict]:

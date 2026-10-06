@@ -5,6 +5,7 @@ export interface Repo {
   source_uri: string | null;
   repo_path: string | null;
   reference_commit: string | null;
+  requested_ref: string | null;
   status: "created" | "ingesting" | "ready" | "error";
   progress: number;
   error: string | null;
@@ -141,20 +142,29 @@ function qs(params: object): string {
 export const listRepos = (): Promise<Repo[]> =>
   fetch("/api/repos").then((r) => handle<Repo[]>(r));
 
-export const uploadZip = (file: File, name: string): Promise<{ repo_id: number }> => {
+export const uploadZip = (
+  file: File,
+  name: string,
+  ref?: string
+): Promise<{ repo_id: number }> => {
   const form = new FormData();
   form.append("file", file);
   if (name) form.append("name", name);
+  if (ref) form.append("ref", ref);
   return fetch("/api/repos/upload", { method: "POST", body: form }).then((r) =>
     handle<{ repo_id: number }>(r)
   );
 };
 
-export const cloneRepo = (url: string, name: string): Promise<{ repo_id: number }> =>
+export const cloneRepo = (
+  url: string,
+  name: string,
+  ref?: string
+): Promise<{ repo_id: number }> =>
   fetch("/api/repos/clone", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, name: name || null }),
+    body: JSON.stringify({ url, name: name || null, ref: ref || null }),
   }).then((r) => handle<{ repo_id: number }>(r));
 
 export const deleteRepo = async (id: number): Promise<void> => {

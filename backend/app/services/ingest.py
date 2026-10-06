@@ -36,7 +36,7 @@ def ingest_repo(repo_id: int, on_progress: ProgressCallback) -> None:
     with db() as conn:
         conn.execute("UPDATE repos SET repo_path = ? WHERE id = ?", (str(repo_path), repo_id))
 
-    extract_history(repo_id, repo_path, on_progress=on_progress)
+    extract_history(repo_id, repo_path, ref=row["requested_ref"], on_progress=on_progress)
 
 
 def _extract_zip(zip_path: Path, dest: Path) -> Path:

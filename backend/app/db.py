@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS repos (
     source TEXT NOT NULL,                      -- 'zip' | 'url'
     source_uri TEXT,                           -- original filename or clone URL
     repo_path TEXT,                            -- local path of extracted/cloned repo
-    reference_commit TEXT,                     -- resolved h_r hash (default: HEAD)
+    reference_commit TEXT,                     -- resolved h_r hash
+    requested_ref TEXT,                        -- branch/tag/hash the user asked for (default HEAD)
     status TEXT NOT NULL DEFAULT 'created',    -- created | ingesting | ready | error
     progress REAL NOT NULL DEFAULT 0,
     error TEXT,
@@ -107,6 +108,14 @@ def init_db() -> None:
     try:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
+        _migrate(conn)
         conn.commit()
     finally:
         conn.close()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Idempotent in-place upgrades for databases made by an earlier schema."""
+    repo_cols = {row[1] for row in conn.execute("PRAGMA table_info(repos)")}
+    if "requested_ref" not in repo_cols:
+        conn.execute("ALTER TABLE repos ADD COLUMN requested_ref TEXT")

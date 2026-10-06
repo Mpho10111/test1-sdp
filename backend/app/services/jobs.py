@@ -9,15 +9,16 @@ from ..db import db
 from .ingest import ingest_repo
 
 
-def register_repo(source: str, source_uri: str, name: str | None) -> int:
+def register_repo(source: str, source_uri: str, name: str | None, ref: str | None = None) -> int:
     if not name:
         derived = Path(source_uri.rstrip("/")).name
         name = derived[:-4] if derived.endswith(".git") else derived
     name = _unique_name(name or "repo")
     with db() as conn:
         cur = conn.execute(
-            "INSERT INTO repos (name, source, source_uri, status) VALUES (?, ?, ?, 'created')",
-            (name, source, source_uri),
+            "INSERT INTO repos (name, source, source_uri, requested_ref, status)"
+            " VALUES (?, ?, ?, ?, 'created')",
+            (name, source, source_uri, (ref or "").strip() or None),
         )
         return int(cur.lastrowid)
 

@@ -7,8 +7,10 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [url, setUrl] = useState("");
   const [urlName, setUrlName] = useState("");
+  const [urlRef, setUrlRef] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [zipName, setZipName] = useState("");
+  const [zipRef, setZipRef] = useState("");
   const [busy, setBusy] = useState(false);
   const [activeRepo, setActiveRepo] = useState<Repo | null>(null);
   const pollTimer = useRef<number | null>(null);
@@ -70,13 +72,18 @@ export default function App() {
           onSubmit={(e) => {
             e.preventDefault();
             if (!file) return;
-            void run(() => uploadZip(file, zipName));
+            void run(() => uploadZip(file, zipName, zipRef));
           }}
         >
           <h2>Upload zip</h2>
           <p>Zip of a repository including its .git directory or file.</p>
           <input type="file" accept=".zip" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           <input placeholder="Name (optional)" value={zipName} onChange={(e) => setZipName(e.target.value)} />
+          <input
+            placeholder="Reference commit / branch / tag (optional — default HEAD)"
+            value={zipRef}
+            onChange={(e) => setZipRef(e.target.value)}
+          />
           <button disabled={busy || !file}>Upload</button>
         </form>
 
@@ -84,13 +91,18 @@ export default function App() {
           className="card"
           onSubmit={(e) => {
             e.preventDefault();
-            void run(() => cloneRepo(url, urlName));
+            void run(() => cloneRepo(url, urlName, urlRef));
           }}
         >
           <h2>Clone from URL</h2>
           <p>Full clone (all history) from a remote repository URL.</p>
           <input placeholder="https://github.com/org/repo.git" value={url} onChange={(e) => setUrl(e.target.value)} />
           <input placeholder="Name (optional)" value={urlName} onChange={(e) => setUrlName(e.target.value)} />
+          <input
+            placeholder="Reference commit / branch / tag (optional — default HEAD)"
+            value={urlRef}
+            onChange={(e) => setUrlRef(e.target.value)}
+          />
           <button disabled={busy || !url}>Clone</button>
         </form>
       </section>

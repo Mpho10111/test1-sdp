@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api/repos", tags=["repos"])
 class CloneRequest(BaseModel):
     url: str
     name: str | None = None
+    ref: str | None = None  # branch, tag or commit hash; defaults to HEAD
 
 
 @router.get("")
@@ -41,10 +42,11 @@ def upload_zip(
     background: BackgroundTasks,
     file: UploadFile = File(...),
     name: str | None = Form(None),
+    ref: str | None = Form(None),
 ) -> dict:
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Upload a .zip file containing a repository (with .git)")
-    repo_id = jobs.register_repo(source="zip", source_uri=file.filename, name=name)
+    repo_id = jobs.register_repo(source="zip", source_uri=file.filename, name=name, ref=ref)
     jobs.save_zip_upload(repo_id, file)
     background.add_task(jobs.run_ingest, repo_id)
     return {"repo_id": repo_id, "status": "ingesting"}
@@ -55,7 +57,7 @@ def clone_remote(background: BackgroundTasks, body: CloneRequest) -> dict:
     url = body.url.strip()
     if not url.startswith(("http://", "https://", "ssh://", "git@")):
         raise HTTPException(status_code=400, detail="Provide a valid clone URL (https://, ssh:// or git@)")
-    repo_id = jobs.register_repo(source="url", source_uri=url, name=body.name)
+    repo_id = jobs.register_repo(source="url", source_uri=url, name=body.name, ref=body.ref)
     background.add_task(jobs.run_ingest, repo_id)
     return {"repo_id": repo_id, "status": "ingesting"}
 

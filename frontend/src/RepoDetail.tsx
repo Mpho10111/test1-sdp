@@ -462,7 +462,8 @@ export default function RepoDetail({ repo, onBack }: { repo: Repo; onBack: () =>
         </button>
         <h1>{repo.name}</h1>
         <span className="muted">
-          {repo.source_uri} · ref {(repo.reference_commit ?? "").slice(0, 10)}
+          {repo.source_uri} · h_r {(repo.reference_commit ?? "").slice(0, 10)}
+          {repo.requested_ref ? ` (from ${repo.requested_ref})` : ""}
         </span>
       </header>
 
