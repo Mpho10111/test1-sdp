@@ -115,5 +115,5 @@ every repository ingested.
 - [x] Manual author merging
 - [x] Multi-repo dashboard: charts, drill-down, sorting, search, pagination
 - [x] Verified at scale on a 61k-commit repository
-- [ ] Commit browser / picker UI
-- [ ] Richer visualisations (directory treemap, ownership share)
+- [x] Commit browser / picker UI
+- [x] Richer visualisations (directory treemap, ownership donut, contribution heatmap, monthly activity)
