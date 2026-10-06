@@ -109,56 +109,10 @@ function donutOption(authors: ObjectAuthor[]): EChartsOption {
   };
 }
 
-function heatmapOption(days: ActivityDay[]): EChartsOption {
+function heatmapOption(days: ActivityDay[], year: number): EChartsOption {
   if (!days.length) return {};
-
-  /* Group data by year and show the most recent 3 years as stacked calendars,
-     mimicking GitHub's contribution graph (one row per year). */
-  const byYear = new Map<number, [string, number][]>();
-  for (const d of days) {
-    const y = +d.date.slice(0, 4);
-    if (!byYear.has(y)) byYear.set(y, []);
-    byYear.get(y)!.push([d.date, d.count]);
-  }
-
-  const years = [...byYear.keys()].sort((a, b) => b - a).slice(0, 3).reverse();
-  const maxCount = Math.max(...days.map((d) => d.count), 1);
-  const CELL = 13;
-  const GAP = 4;
-  const ROW_H = CELL * 7 + GAP * 6 + 36;      // 7 days + gaps + label
-  const TOP_PAD = 8;
-
-  const calendars: object[] = [];
-  const series: object[] = [];
-
-  years.forEach((yr, i) => {
-    const top = TOP_PAD + i * (ROW_H + 24);
-    calendars.push({
-      range: String(yr),
-      cellSize: [CELL, CELL],
-      top,
-      left: 74,
-      right: 30,
-      splitLine: { show: false },
-      yearLabel: { show: true, position: "left", margin: 12, fontSize: 13, fontWeight: 600, color: "#24292f" },
-      dayLabel: {
-        show: true,
-        firstDay: 0,
-        nameMap: ["Sun", "", "Tue", "", "Thu", "", "Sat"],
-        fontSize: 10,
-        color: "#656d76",
-      },
-      monthLabel: { show: true, fontSize: 10, color: "#656d76" },
-      itemStyle: { borderWidth: 3, borderColor: "#fff", borderRadius: 2, color: "#ebedf0" },
-    });
-    series.push({
-      type: "heatmap",
-      coordinateSystem: "calendar",
-      calendarIndex: i,
-      data: byYear.get(yr) ?? [],
-    });
-  });
-
+  const data = days.filter((d) => d.date.startsWith(String(year))).map((d) => [d.date, d.count] as [string, number]);
+  const maxCount = Math.max(...data.map((d) => d[1]), 1);
   return {
     tooltip: {
       formatter: (p: unknown) => {
@@ -169,11 +123,47 @@ function heatmapOption(days: ActivityDay[]): EChartsOption {
     visualMap: {
       min: 0,
       max: maxCount,
-      show: false,
-      inRange: { color: ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"] },
+      type: "piecewise",
+      orient: "horizontal",
+      left: "center",
+      bottom: 0,
+      pieces: [
+        { lte: 0, label: "0", color: "#ebedf0" },
+        { gt: 0, lte: Math.max(Math.ceil(maxCount * 0.25), 1), label: "Low", color: "#9be9a8" },
+        { gt: Math.ceil(maxCount * 0.25), lte: Math.ceil(maxCount * 0.5), label: "Med", color: "#40c463" },
+        { gt: Math.ceil(maxCount * 0.5), lte: Math.ceil(maxCount * 0.75), label: "High", color: "#30a14e" },
+        { gt: Math.ceil(maxCount * 0.75), label: "Max", color: "#216e39" },
+      ],
+      textStyle: { fontSize: 10, color: "#656d76" },
+      itemWidth: 12,
+      itemHeight: 12,
+      itemGap: 6,
     },
-    calendar: calendars as never,
-    series: series as never,
+    calendar: {
+      range: String(year),
+      cellSize: [14, 14],
+      top: 48,
+      left: 46,
+      right: 30,
+      bottom: 36,
+      splitLine: { show: false },
+      yearLabel: { show: false },
+      dayLabel: {
+        show: true,
+        firstDay: 0,
+        nameMap: ["Sun", "", "Tue", "", "Thu", "", "Sat"],
+        fontSize: 10,
+        color: "#656d76",
+        margin: 6,
+      },
+      monthLabel: { show: true, fontSize: 11, color: "#24292f", nameMap: "en" },
+      itemStyle: { borderWidth: 3, borderColor: "#fff", borderRadius: 2, color: "#ebedf0" },
+    },
+    series: [{
+      type: "heatmap",
+      coordinateSystem: "calendar",
+      data,
+    }],
   };
 }
 
@@ -374,6 +364,7 @@ export default function RepoDetail({ repo, onBack }: { repo: Repo; onBack: () =>
   const [overview, setOverview] = useState<Overview | null>(null);
   const [activity, setActivity] = useState<ActivityDay[]>([]);
   const [treemap, setTreemap] = useState<TreemapNode[]>([]);
+  const [heatYear, setHeatYear] = useState<number | null>(null);
 
   const [fileQ, setFileQ] = useState("");
   const [fileSort, setFileSort] = useState("churn");
@@ -455,6 +446,16 @@ export default function RepoDetail({ repo, onBack }: { repo: Repo; onBack: () =>
   const sortDirs = makeSort(dirSort, dirOrder, setDirSort, setDirOrder, setDirOffset);
   const cleared = !fromDate && !toDate && !authorId && !hashList.trim();
 
+  // heatmap year picker — all years with data, auto-select most recent
+  const heatYears = useMemo(() =>
+    [...new Set(activity.map((d) => +d.date.slice(0, 4)))].sort((a, b) => b - a),
+    [activity],
+  );
+  useEffect(() => {
+    if (heatYears.length && (heatYear === null || !heatYears.includes(heatYear)))
+      setHeatYear(heatYears[0]);
+  }, [heatYears, heatYear]);
+
   // --- keyboard shortcut: Escape goes back ---
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -517,17 +518,26 @@ export default function RepoDetail({ repo, onBack }: { repo: Repo; onBack: () =>
             { label: "Churn rate (ρ)", value: f2(overview.totals.churn_rate) },
           ]} />
 
-          {/* Activity heatmap (calendar) */}
-          {activity.length > 0 && (() => {
-            const yearCount = Math.min(new Set(activity.map((d) => d.date.slice(0, 4))).size, 3);
-            const heatH = yearCount * 180;
-            return (
-              <div className="chart-card">
-                <h3>Contribution activity</h3>
-                <EChart option={heatmapOption(activity)} height={heatH} />
+          {/* Activity heatmap (calendar) with year picker */}
+          {activity.length > 0 && heatYear !== null && (
+            <div className="chart-card">
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+                <h3 style={{ margin: 0 }}>Contribution activity</h3>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {heatYears.map((yr) => (
+                    <button
+                      key={yr}
+                      className={yr === heatYear ? "ghost active-year" : "ghost"}
+                      onClick={() => setHeatYear(yr)}
+                    >
+                      {yr}
+                    </button>
+                  ))}
+                </div>
               </div>
-            );
-          })()}
+              <EChart option={heatmapOption(activity, heatYear)} height={200} />
+            </div>
+          )}
 
           {/* Monthly activity chart */}
           <div className="chart-card">

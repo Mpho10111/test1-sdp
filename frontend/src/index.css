@@ -346,6 +346,12 @@ button.ghost {
   color: #374151;
   border: 1px solid #d4dae0;
 }
+button.ghost.active-year {
+  background: #6366f1;
+  color: #fff;
+  border-color: #6366f1;
+  font-weight: 600;
+}
 
 .actions {
   display: flex;
